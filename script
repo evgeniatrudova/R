@@ -1,1 +1,118 @@
+# Load necessary libraries
+library(ggplot2)     # For data visualization
+library(caret)       # For model training and evaluation
+library(randomForest) # For running the Random Forest algorithm
+library(nnet)        # For creating neural network models
+
+# Load the dataset
+load("exam.Rdata")
+
+# Initial dataset inspection
+str(dataset)         # Check structure of dataset
+summary(dataset)     # Summary statistics of dataset
+
+# Data cleaning: Removing columns with missing values and low variance
+dataset_clean <- dataset[, colSums(is.na(dataset)) == 0]
+dataset_clean <- dataset_clean[, apply(dataset_clean, 2, var) >= 0.5]
+
+# Split data into training (80%) and validation (20%) sets
+set.seed(123)
+train_index <- createDataPartition(dataset_clean$response, p = 0.8, list = FALSE)
+train_data <- dataset_clean[train_index, ]
+val_data <- dataset_clean[-train_index, ]
+
+# Linear Regression Model 1: Response vs. XLogP
+lm_model_XLogP <- lm(response ~ XLogP, data = train_data)
+predictions_lm_XLogP <- predict(lm_model_XLogP, newdata = val_data)
+
+# Evaluation of Model 1
+rmse_lm_XLogP <- sqrt(mean((val_data$response - predictions_lm_XLogP)^2))
+mae_lm_XLogP <- mean(abs(val_data$response - predictions_lm_XLogP))
+r_squared_lm_XLogP <- cor(predictions_lm_XLogP, val_data$response)^2
+coefficients_lm_XLogP <- summary(lm_model_XLogP)$coefficients
+
+# Plot Model 1
+plot_data_LogP <- data.frame(XLogP = val_data$XLogP, response = val_data$response, predictions = predictions_lm_XLogP)
+metrics_text <- sprintf("RMSE: %.3f | MAE: %.3f | R-squared: %.3f\nIntercept: %.3f | Slope: %.3f",
+                        rmse_lm_XLogP, mae_lm_XLogP, r_squared_lm_XLogP,
+                        coefficients_lm_XLogP["(Intercept)", "Estimate"],
+                        coefficients_lm_XLogP["XLogP", "Estimate"])
+ggplot(plot_data_LogP, aes(x = XLogP, y = response)) +
+  geom_point() +
+  geom_line(aes(y = predictions), color = "blue", size = 1) +
+  labs(x = "XLogP", y = "Response", title = "Linear Regression: Response vs. XLogP", subtitle = metrics_text) +
+  theme_minimal() +
+  theme(plot.subtitle = element_text(size = 10, hjust = 0.5))
+
+# Linear Regression Model 2: Response vs. TopoPSA
+lm_TopoPSA <- lm(response ~ TopoPSA, data = train_data)
+predictions_TopoPSA <- predict(lm_TopoPSA, newdata = val_data)
+
+# Evaluation of Model 2
+rmse_lm_TopoPSA <- sqrt(mean((val_data$response - predictions_TopoPSA)^2))
+mae_lm_TopoPSA <- mean(abs(val_data$response - predictions_TopoPSA))
+r_squared_lm_TopoPSA <- cor(predictions_TopoPSA, val_data$response)^2
+coefficients_lm_TopoPSA <- summary(lm_TopoPSA)$coefficients
+
+# Plot Model 2
+plot_data_TopoPSA <- data.frame(TopoPSA = val_data$TopoPSA, response = val_data$response, predictions = predictions_TopoPSA)
+metrics_text <- sprintf("RMSE: %.3f | MAE: %.3f | R-squared: %.3f\nIntercept: %.3f | Slope: %.3f",
+                        rmse_lm_TopoPSA, mae_lm_TopoPSA, r_squared_lm_TopoPSA,
+                        coefficients_lm_TopoPSA["(Intercept)", "Estimate"],
+                        coefficients_lm_TopoPSA["TopoPSA", "Estimate"])
+ggplot(plot_data_TopoPSA, aes(x = TopoPSA, y = response)) +
+  geom_point() +
+  geom_line(aes(y = predictions), color = "blue", size = 1) +
+  labs(x = "TopoPSA", y = "Response", title = "Linear Regression: Response vs. TopoPSA", subtitle = metrics_text) +
+  theme_minimal() +
+  theme(plot.subtitle = element_text(size = 10, hjust = 0.5))
+
+# Linear Regression Model 3: Response vs. MW
+lm_MW <- lm(response ~ MW, data = train_data)
+predictions_MW <- predict(lm_MW, newdata = val_data)
+
+# Evaluation of Model 3
+rmse_lm_MW <- sqrt(mean((val_data$response - predictions_MW)^2))
+mae_lm_MW <- mean(abs(val_data$response - predictions_MW))
+r_squared_lm_MW <- cor(predictions_MW, val_data$response)^2
+coefficients_lm_MW <- summary(lm_MW)$coefficients
+
+# Plot Model 3
+plot_data_MW <- data.frame(MW = val_data$MW, response = val_data$response, predictions = predictions_MW)
+metrics_text <- sprintf("RMSE: %.3f | MAE: %.3f | R-squared: %.3f\nIntercept: %.3f | Slope: %.3f",
+                        rmse_lm_MW, mae_lm_MW, r_squared_lm_MW,
+                        coefficients_lm_MW["(Intercept)", "Estimate"],
+                        coefficients_lm_MW["MW", "Estimate"])
+ggplot(plot_data_MW, aes(x = MW, y = response)) +
+  geom_point() +
+  geom_line(aes(y = predictions), color = "blue", size = 1) +
+  labs(x = "MW", y = "Response", title = "Linear Regression: Response vs. MW", subtitle = metrics_text) +
+  theme_minimal() +
+  theme(plot.subtitle = element_text(size = 10, hjust = 0.5))
+
+# Random Forest Model
+model_rf <- randomForest(response ~ ., data = train_data, importance = TRUE)
+pred_rf <- predict(model_rf, val_data)
+
+# Evaluation of Random Forest Model
+rmse_rf <- sqrt(mean((val_data$response - pred_rf)^2))
+varImpPlot(model_rf) # Plot variable importance
+
+# Neural Network Model
+nn_model <- nnet(response ~ ., data = train_data, size = 5, linout = TRUE, maxit = 100)
+pred_nn <- predict(nn_model, val_data)
+
+# Evaluation of Neural Network Model
+rmse_nn <- sqrt(mean((val_data$response - pred_nn)^2))
+mae_nn <- mean(abs(val_data$response - pred_nn))
+r_squared_nn <- cor(pred_nn, val_data$response)^2
+
+# Summary of results
+results <- data.frame(
+  Model = c("Linear Regression (XLogP)", "Linear Regression (TopoPSA)", "Linear Regression (MW)", "Random Forest", "Neural Network"),
+  RMSE = c(rmse_lm_XLogP, rmse_lm_TopoPSA, rmse_lm_MW, rmse_rf, rmse_nn),
+  MAE = c(mae_lm_XLogP, mae_lm_TopoPSA, mae_lm_MW, NA, mae_nn),
+  R2 = c(r_squared_lm_XLogP, r_squared_lm_TopoPSA, r_squared_lm_MW, NA, r_squared_nn)
+)
+print(results)
 
